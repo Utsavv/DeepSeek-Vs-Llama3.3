@@ -1,0 +1,46 @@
+"""
+## Objective:
+Write a tSQL stored procedure based on the given business requirements, table structure, and indexing information.
+
+---
+
+## High-Level Instructions:
+1. **Understand Business Requirements**: Analyze and interpret the functional need behind the query.
+2. **Understand Table Structure**: Review column data types, relationships, and constraints.
+3. **Understand Indexing**: Identify relevant indexes for optimal query performance.
+4. **Write an Optimized Stored Procedure**: 
+   - Ensure efficient execution using indexing, joins, and query tuning.
+   - Avoid table scans and optimize for minimal I/O.
+   - Use appropriate locking hints if needed.
+5. **Ensure Completeness**: 
+   - Fulfill all business requirements.
+   - Consider edge cases and data integrity constraints.
+6. **Implement Error Handling & Logging**:
+   - Use TRY...CATCH blocks for handling errors gracefully.
+   - Log failures where applicable.
+
+---
+
+## Business Requirement:
+"""
+[BUSINESS REQUIREMENT]
+"""
+
+---
+
+## Table Structure & Indexes:
+"""
+[TABLE STRUCTURE]
+"""
+
+---
+
+## Additional Considerations:
+1. Should the stored procedure support parameterization? (e.g., filtering by date range, user input)
+2. Should it return a result set, modify data, or both?
+3. Are there concurrency concerns (e.g., transactional consistency, locking issues)?
+4. Should logging be included for monitoring execution?
+5. Any specific performance metrics or execution time constraints?
+
+---
+"""

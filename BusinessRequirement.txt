@@ -1,0 +1,91 @@
+**Business Requirement Document: Invoice Customer Orders Procedure**
+
+## **1. Introduction**
+
+### **1.1 Purpose**
+Worldwide Import requires an efficient and automated process for generating invoices for customer orders. The **Website.InvoiceCustomerOrders** stored procedure is designed to streamline the invoicing workflow by ensuring that all orders that meet the required conditions are processed and invoiced correctly.
+
+### **1.2 Scope**
+The scope of this stored procedure includes:
+- Validating order eligibility for invoicing.
+- Assigning invoice numbers.
+- Creating invoices and invoice lines for processed orders.
+- Adjusting stock levels for invoiced items.
+- Recording customer transactions.
+
+---
+
+## **2. Business Requirements**
+
+### **2.1 Functional Requirements**
+The system must:
+1. **Verify Orders for Invoicing**: Ensure that each order meets the following criteria:
+   - Exists in the **Sales.Orders** table.
+   - Has been fully picked (i.e., `PickingCompletedWhen` is not null).
+   - Has not already been invoiced.
+
+2. **Generate Invoices**:
+   - Assign a new **InvoiceID** using the `Sequences.InvoiceID` sequence.
+   - Calculate total **dry** and **chiller** items for each invoice.
+
+3. **Insert Invoice Records**:
+   - Add new invoices to the **Sales.Invoices** table, linking them to orders and customers.
+   - Capture key details such as invoice date, purchase order number, and delivery instructions.
+   
+4. **Insert Invoice Line Items**:
+   - Add detailed invoice line entries in **Sales.InvoiceLines** for each invoiced order line.
+   - Compute taxes, line profit, and total price.
+
+5. **Stock Transactions & Adjustments**:
+   - Record stock issuance transactions in **Warehouse.StockItemTransactions**.
+   - Deduct invoiced stock from **Warehouse.StockItemHoldings**.
+
+6. **Customer Transactions & Financial Impact**:
+   - Record a financial transaction in **Sales.CustomerTransactions** reflecting the invoiced amount.
+   - Ensure outstanding balances are updated accordingly.
+
+### **2.2 Non-Functional Requirements**
+1. **Performance:** The procedure should handle bulk invoicing efficiently without degrading system performance.
+2. **Data Integrity:** All transactional operations must be atomic, ensuring consistency through proper error handling.
+3. **Security:** The procedure executes under the owner’s permission, ensuring controlled access to sensitive financial data.
+4. **Scalability:** The stored procedure should support the company’s future growth in sales transactions.
+
+---
+
+## **3. Business Rules**
+- Orders that are already invoiced cannot be reprocessed.
+- Orders must be fully picked before invoicing.
+- The invoice date should be the current system date.
+- Tax calculations should be applied at the line level.
+- Stock cannot be reduced below zero.
+- Customer outstanding balances must be updated immediately upon invoice generation.
+
+---
+
+## **4. Error Handling & Logging**
+- If an order does not meet invoicing criteria, an error message should be thrown (`At least one orderID either does not exist, is not picked, or is already invoiced`).
+- If any error occurs during the transaction, all operations must be rolled back to maintain data integrity.
+- Error details should be logged for further analysis and troubleshooting.
+
+---
+
+## **5. Stakeholders**
+- **Sales Team:** Requires automated invoice generation to improve efficiency.
+- **Warehouse Team:** Needs accurate stock updates after order invoicing.
+- **Finance Team:** Relies on accurate invoicing for revenue tracking.
+- **IT Team:** Ensures proper implementation and maintenance of the stored procedure.
+
+---
+
+## **6. Assumptions & Dependencies**
+- The `Sequences.InvoiceID` sequence must be available and properly configured.
+- Order picking status is accurately updated in **Sales.Orders**.
+- Customer and order details exist in the respective tables before invoicing.
+- The procedure relies on the database transaction system to maintain consistency.
+
+---
+
+## **7. Approval**
+**Prepared By:** [Your Name]  
+**Approved By:** [Approval Authority]  
+**Date:** [Approval Date]

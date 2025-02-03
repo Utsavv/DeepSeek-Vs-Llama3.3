@@ -1,0 +1,651 @@
+
+## Objective:
+Write a tSQL stored procedure based on the given business requirements, table structure, and indexing information.
+
+---
+
+## High-Level Instructions:
+1. **Understand Business Requirements**: Analyze and interpret the functional need behind the query.
+2. **Understand Table Structure**: Review column data types, relationships, and constraints.
+3. **Understand Indexing**: Identify relevant indexes for optimal query performance.
+4. **Write an Optimized Stored Procedure**: 
+   - Ensure efficient execution using indexing, joins, and query tuning.
+   - Avoid table scans and optimize for minimal I/O.
+   - Use appropriate locking hints if needed.
+5. **Ensure Completeness**: 
+   - Fulfill all business requirements.
+   - Consider edge cases and data integrity constraints.
+6. **Implement Error Handling & Logging**:
+   - Use TRY...CATCH blocks for handling errors gracefully.
+   - Log failures where applicable.
+
+---
+
+## Business Requirement:
+
+**Business Requirement Document: Invoice Customer Orders Procedure**
+
+## **1. Introduction**
+
+### **1.1 Purpose**
+Worldwide Import requires an efficient and automated process for generating invoices for customer orders. The **Website.InvoiceCustomerOrders** stored procedure is designed to streamline the invoicing workflow by ensuring that all orders that meet the required conditions are processed and invoiced correctly.
+
+### **1.2 Scope**
+The scope of this stored procedure includes:
+- Validating order eligibility for invoicing.
+- Assigning invoice numbers.
+- Creating invoices and invoice lines for processed orders.
+- Adjusting stock levels for invoiced items.
+- Recording customer transactions.
+
+---
+
+## **2. Business Requirements**
+
+### **2.1 Functional Requirements**
+The system must:
+1. **Verify Orders for Invoicing**: Ensure that each order meets the following criteria:
+   - Exists in the **Sales.Orders** table.
+   - Has been fully picked (i.e., `PickingCompletedWhen` is not null).
+   - Has not already been invoiced.
+
+2. **Generate Invoices**:
+   - Assign a new **InvoiceID** using the `Sequences.InvoiceID` sequence.
+   - Calculate total **dry** and **chiller** items for each invoice.
+
+3. **Insert Invoice Records**:
+   - Add new invoices to the **Sales.Invoices** table, linking them to orders and customers.
+   - Capture key details such as invoice date, purchase order number, and delivery instructions.
+   
+4. **Insert Invoice Line Items**:
+   - Add detailed invoice line entries in **Sales.InvoiceLines** for each invoiced order line.
+   - Compute taxes, line profit, and total price.
+
+5. **Stock Transactions & Adjustments**:
+   - Record stock issuance transactions in **Warehouse.StockItemTransactions**.
+   - Deduct invoiced stock from **Warehouse.StockItemHoldings**.
+
+6. **Customer Transactions & Financial Impact**:
+   - Record a financial transaction in **Sales.CustomerTransactions** reflecting the invoiced amount.
+   - Ensure outstanding balances are updated accordingly.
+
+### **2.2 Non-Functional Requirements**
+1. **Performance:** The procedure should handle bulk invoicing efficiently without degrading system performance.
+2. **Data Integrity:** All transactional operations must be atomic, ensuring consistency through proper error handling.
+3. **Security:** The procedure executes under the owner’s permission, ensuring controlled access to sensitive financial data.
+4. **Scalability:** The stored procedure should support the company’s future growth in sales transactions.
+
+---
+
+## **3. Business Rules**
+- Orders that are already invoiced cannot be reprocessed.
+- Orders must be fully picked before invoicing.
+- The invoice date should be the current system date.
+- Tax calculations should be applied at the line level.
+- Stock cannot be reduced below zero.
+- Customer outstanding balances must be updated immediately upon invoice generation.
+
+---
+
+## **4. Error Handling & Logging**
+- If an order does not meet invoicing criteria, an error message should be thrown (`At least one orderID either does not exist, is not picked, or is already invoiced`).
+- If any error occurs during the transaction, all operations must be rolled back to maintain data integrity.
+- Error details should be logged for further analysis and troubleshooting.
+
+---
+
+## **5. Stakeholders**
+- **Sales Team:** Requires automated invoice generation to improve efficiency.
+- **Warehouse Team:** Needs accurate stock updates after order invoicing.
+- **Finance Team:** Relies on accurate invoicing for revenue tracking.
+- **IT Team:** Ensures proper implementation and maintenance of the stored procedure.
+
+---
+
+## **6. Assumptions & Dependencies**
+- The `Sequences.InvoiceID` sequence must be available and properly configured.
+- Order picking status is accurately updated in **Sales.Orders**.
+- Customer and order details exist in the respective tables before invoicing.
+- The procedure relies on the database transaction system to maintain consistency.
+
+---
+
+## **7. Approval**
+**Prepared By:** [Your Name]  
+**Approved By:** [Approval Authority]  
+**Date:** [Approval Date]
+"""
+
+---
+
+## Table Structure & Indexes:
+"""
+
+CREATE TABLE Application.People (PersonID int DEFAULT (NEXT VALUE FOR [Sequences].[PersonID]) NOT NULL,
+FullName nvarchar(50)  NOT NULL,
+PreferredName nvarchar(50)  NOT NULL,
+SearchName nvarchar(101)  NOT NULL,
+IsPermittedToLogon bit  NOT NULL,
+LogonName nvarchar(50)  NULL,
+IsExternalLogonProvider bit  NOT NULL,
+HashedPassword varbinary  NULL,
+IsSystemUser bit  NOT NULL,
+IsEmployee bit  NOT NULL,
+IsSalesperson bit  NOT NULL,
+UserPreferences nvarchar(-1)  NULL,
+PhoneNumber nvarchar(20)  NULL,
+FaxNumber nvarchar(20)  NULL,
+EmailAddress nvarchar(256)  NULL,
+Photo varbinary  NULL,
+CustomFields nvarchar(-1)  NULL,
+OtherLanguages nvarchar(-1)  NULL,
+LastEditedBy int  NOT NULL,
+ValidFrom datetime2  NOT NULL,
+ValidTo datetime2  NOT NULL
+);
+
+CREATE INDEX IX_Application_People_FullName ON Application.People (FullName);
+
+CREATE INDEX IX_Application_People_IsEmployee ON Application.People (IsEmployee);
+
+CREATE INDEX IX_Application_People_IsSalesperson ON Application.People (IsSalesperson);
+
+CREATE INDEX IX_Application_People_Perf_20160301_05 ON Application.People (IsPermittedToLogon, PersonID) INCLUDE (FullName, EmailAddress);
+
+CREATE INDEX PK_Application_People ON Application.People (PersonID);
+CREATE TABLE Application.Countries (CountryID int DEFAULT (NEXT VALUE FOR [Sequences].[CountryID]) NOT NULL,
+CountryName nvarchar(60)  NOT NULL,
+FormalName nvarchar(60)  NOT NULL,
+IsoAlpha3Code nvarchar(3)  NULL,
+IsoNumericCode int  NULL,
+CountryType nvarchar(20)  NULL,
+LatestRecordedPopulation bigint  NULL,
+Continent nvarchar(30)  NOT NULL,
+Region nvarchar(30)  NOT NULL,
+Subregion nvarchar(30)  NOT NULL,
+Border geography  NULL,
+LastEditedBy int  NOT NULL,
+ValidFrom datetime2  NOT NULL,
+ValidTo datetime2  NOT NULL
+);
+
+CREATE INDEX PK_Application_Countries ON Application.Countries (CountryID);
+
+CREATE INDEX UQ_Application_Countries_CountryName ON Application.Countries (CountryName);
+
+CREATE INDEX UQ_Application_Countries_FormalName ON Application.Countries (FormalName);
+CREATE TABLE Application.DeliveryMethods (DeliveryMethodID int DEFAULT (NEXT VALUE FOR [Sequences].[DeliveryMethodID]) NOT NULL,
+DeliveryMethodName nvarchar(50)  NOT NULL,
+LastEditedBy int  NOT NULL,
+ValidFrom datetime2  NOT NULL,
+ValidTo datetime2  NOT NULL
+);
+
+CREATE INDEX PK_Application_DeliveryMethods ON Application.DeliveryMethods (DeliveryMethodID);
+
+CREATE INDEX UQ_Application_DeliveryMethods_DeliveryMethodName ON Application.DeliveryMethods (DeliveryMethodName);
+CREATE TABLE Application.PaymentMethods (PaymentMethodID int DEFAULT (NEXT VALUE FOR [Sequences].[PaymentMethodID]) NOT NULL,
+PaymentMethodName nvarchar(50)  NOT NULL,
+LastEditedBy int  NOT NULL,
+ValidFrom datetime2  NOT NULL,
+ValidTo datetime2  NOT NULL
+);
+
+CREATE INDEX PK_Application_PaymentMethods ON Application.PaymentMethods (PaymentMethodID);
+
+CREATE INDEX UQ_Application_PaymentMethods_PaymentMethodName ON Application.PaymentMethods (PaymentMethodName);
+CREATE TABLE Application.TransactionTypes (TransactionTypeID int DEFAULT (NEXT VALUE FOR [Sequences].[TransactionTypeID]) NOT NULL,
+TransactionTypeName nvarchar(50)  NOT NULL,
+LastEditedBy int  NOT NULL,
+ValidFrom datetime2  NOT NULL,
+ValidTo datetime2  NOT NULL
+);
+
+CREATE INDEX PK_Application_TransactionTypes ON Application.TransactionTypes (TransactionTypeID);
+
+CREATE INDEX UQ_Application_TransactionTypes_TransactionTypeName ON Application.TransactionTypes (TransactionTypeName);
+CREATE TABLE Purchasing.SupplierCategories (SupplierCategoryID int DEFAULT (NEXT VALUE FOR [Sequences].[SupplierCategoryID]) NOT NULL,
+SupplierCategoryName nvarchar(50)  NOT NULL,
+LastEditedBy int  NOT NULL,
+ValidFrom datetime2  NOT NULL,
+ValidTo datetime2  NOT NULL
+);
+
+CREATE INDEX PK_Purchasing_SupplierCategories ON Purchasing.SupplierCategories (SupplierCategoryID);
+
+CREATE INDEX UQ_Purchasing_SupplierCategories_SupplierCategoryName ON Purchasing.SupplierCategories (SupplierCategoryName);
+CREATE TABLE Sales.BuyingGroups (BuyingGroupID int DEFAULT (NEXT VALUE FOR [Sequences].[BuyingGroupID]) NOT NULL,
+BuyingGroupName nvarchar(50)  NOT NULL,
+LastEditedBy int  NOT NULL,
+ValidFrom datetime2  NOT NULL,
+ValidTo datetime2  NOT NULL
+);
+
+CREATE INDEX PK_Sales_BuyingGroups ON Sales.BuyingGroups (BuyingGroupID);
+
+CREATE INDEX UQ_Sales_BuyingGroups_BuyingGroupName ON Sales.BuyingGroups (BuyingGroupName);
+CREATE TABLE Sales.CustomerCategories (CustomerCategoryID int DEFAULT (NEXT VALUE FOR [Sequences].[CustomerCategoryID]) NOT NULL,
+CustomerCategoryName nvarchar(50)  NOT NULL,
+LastEditedBy int  NOT NULL,
+ValidFrom datetime2  NOT NULL,
+ValidTo datetime2  NOT NULL
+);
+
+CREATE INDEX PK_Sales_CustomerCategories ON Sales.CustomerCategories (CustomerCategoryID);
+
+CREATE INDEX UQ_Sales_CustomerCategories_CustomerCategoryName ON Sales.CustomerCategories (CustomerCategoryName);
+CREATE TABLE Warehouse.Colors (ColorID int DEFAULT (NEXT VALUE FOR [Sequences].[ColorID]) NOT NULL,
+ColorName nvarchar(20)  NOT NULL,
+LastEditedBy int  NOT NULL,
+ValidFrom datetime2  NOT NULL,
+ValidTo datetime2  NOT NULL
+);
+
+CREATE INDEX PK_Warehouse_Colors ON Warehouse.Colors (ColorID);
+
+CREATE INDEX UQ_Warehouse_Colors_ColorName ON Warehouse.Colors (ColorName);
+CREATE TABLE Warehouse.PackageTypes (PackageTypeID int DEFAULT (NEXT VALUE FOR [Sequences].[PackageTypeID]) NOT NULL,
+PackageTypeName nvarchar(50)  NOT NULL,
+LastEditedBy int  NOT NULL,
+ValidFrom datetime2  NOT NULL,
+ValidTo datetime2  NOT NULL
+);
+
+CREATE INDEX PK_Warehouse_PackageTypes ON Warehouse.PackageTypes (PackageTypeID);
+
+CREATE INDEX UQ_Warehouse_PackageTypes_PackageTypeName ON Warehouse.PackageTypes (PackageTypeName);
+CREATE TABLE Application.StateProvinces (StateProvinceID int DEFAULT (NEXT VALUE FOR [Sequences].[StateProvinceID]) NOT NULL,
+StateProvinceCode nvarchar(5)  NOT NULL,
+StateProvinceName nvarchar(50)  NOT NULL,
+CountryID int  NOT NULL,
+SalesTerritory nvarchar(50)  NOT NULL,
+Border geography  NULL,
+LatestRecordedPopulation bigint  NULL,
+LastEditedBy int  NOT NULL,
+ValidFrom datetime2  NOT NULL,
+ValidTo datetime2  NOT NULL
+);
+
+CREATE INDEX FK_Application_StateProvinces_CountryID ON Application.StateProvinces (CountryID);
+
+CREATE INDEX IX_Application_StateProvinces_SalesTerritory ON Application.StateProvinces (SalesTerritory);
+
+CREATE INDEX PK_Application_StateProvinces ON Application.StateProvinces (StateProvinceID);
+
+CREATE INDEX UQ_Application_StateProvinces_StateProvinceName ON Application.StateProvinces (StateProvinceName);
+CREATE TABLE Application.Cities (CityID int DEFAULT (NEXT VALUE FOR [Sequences].[CityID]) NOT NULL,
+CityName nvarchar(50)  NOT NULL,
+StateProvinceID int  NOT NULL,
+Location geography  NULL,
+LatestRecordedPopulation bigint  NULL,
+LastEditedBy int  NOT NULL,
+ValidFrom datetime2  NOT NULL,
+ValidTo datetime2  NOT NULL
+);
+
+CREATE INDEX FK_Application_Cities_StateProvinceID ON Application.Cities (StateProvinceID);
+
+CREATE INDEX PK_Application_Cities ON Application.Cities (CityID);
+CREATE TABLE Purchasing.Suppliers (SupplierID int DEFAULT (NEXT VALUE FOR [Sequences].[SupplierID]) NOT NULL,
+SupplierName nvarchar(100)  NOT NULL,
+SupplierCategoryID int  NOT NULL,
+PrimaryContactPersonID int  NOT NULL,
+AlternateContactPersonID int  NOT NULL,
+DeliveryMethodID int  NULL,
+DeliveryCityID int  NOT NULL,
+PostalCityID int  NOT NULL,
+SupplierReference nvarchar(20)  NULL,
+BankAccountName nvarchar(50)  NULL,
+BankAccountBranch nvarchar(50)  NULL,
+BankAccountCode nvarchar(20)  NULL,
+BankAccountNumber nvarchar(20)  NULL,
+BankInternationalCode nvarchar(20)  NULL,
+PaymentDays int  NOT NULL,
+InternalComments nvarchar(-1)  NULL,
+PhoneNumber nvarchar(20)  NOT NULL,
+FaxNumber nvarchar(20)  NOT NULL,
+WebsiteURL nvarchar(256)  NOT NULL,
+DeliveryAddressLine1 nvarchar(60)  NOT NULL,
+DeliveryAddressLine2 nvarchar(60)  NULL,
+DeliveryPostalCode nvarchar(10)  NOT NULL,
+DeliveryLocation geography  NULL,
+PostalAddressLine1 nvarchar(60)  NOT NULL,
+PostalAddressLine2 nvarchar(60)  NULL,
+PostalPostalCode nvarchar(10)  NOT NULL,
+LastEditedBy int  NOT NULL,
+ValidFrom datetime2  NOT NULL,
+ValidTo datetime2  NOT NULL
+);
+
+CREATE INDEX FK_Purchasing_Suppliers_AlternateContactPersonID ON Purchasing.Suppliers (AlternateContactPersonID);
+
+CREATE INDEX FK_Purchasing_Suppliers_DeliveryCityID ON Purchasing.Suppliers (DeliveryCityID);
+
+CREATE INDEX FK_Purchasing_Suppliers_DeliveryMethodID ON Purchasing.Suppliers (DeliveryMethodID);
+
+CREATE INDEX FK_Purchasing_Suppliers_PostalCityID ON Purchasing.Suppliers (PostalCityID);
+
+CREATE INDEX FK_Purchasing_Suppliers_PrimaryContactPersonID ON Purchasing.Suppliers (PrimaryContactPersonID);
+
+CREATE INDEX FK_Purchasing_Suppliers_SupplierCategoryID ON Purchasing.Suppliers (SupplierCategoryID);
+
+CREATE INDEX PK_Purchasing_Suppliers ON Purchasing.Suppliers (SupplierID);
+
+CREATE INDEX UQ_Purchasing_Suppliers_SupplierName ON Purchasing.Suppliers (SupplierName);
+CREATE TABLE Sales.Customers (CustomerID int DEFAULT (NEXT VALUE FOR [Sequences].[CustomerID]) NOT NULL,
+CustomerName nvarchar(100)  NOT NULL,
+BillToCustomerID int  NOT NULL,
+CustomerCategoryID int  NOT NULL,
+BuyingGroupID int  NULL,
+PrimaryContactPersonID int  NOT NULL,
+AlternateContactPersonID int  NULL,
+DeliveryMethodID int  NOT NULL,
+DeliveryCityID int  NOT NULL,
+PostalCityID int  NOT NULL,
+CreditLimit decimal  NULL,
+AccountOpenedDate date  NOT NULL,
+StandardDiscountPercentage decimal  NOT NULL,
+IsStatementSent bit  NOT NULL,
+IsOnCreditHold bit  NOT NULL,
+PaymentDays int  NOT NULL,
+PhoneNumber nvarchar(20)  NOT NULL,
+FaxNumber nvarchar(20)  NOT NULL,
+DeliveryRun nvarchar(5)  NULL,
+RunPosition nvarchar(5)  NULL,
+WebsiteURL nvarchar(256)  NOT NULL,
+DeliveryAddressLine1 nvarchar(60)  NOT NULL,
+DeliveryAddressLine2 nvarchar(60)  NULL,
+DeliveryPostalCode nvarchar(10)  NOT NULL,
+DeliveryLocation geography  NULL,
+PostalAddressLine1 nvarchar(60)  NOT NULL,
+PostalAddressLine2 nvarchar(60)  NULL,
+PostalPostalCode nvarchar(10)  NOT NULL,
+LastEditedBy int  NOT NULL,
+ValidFrom datetime2  NOT NULL,
+ValidTo datetime2  NOT NULL
+);
+
+CREATE INDEX FK_Sales_Customers_AlternateContactPersonID ON Sales.Customers (AlternateContactPersonID);
+
+CREATE INDEX FK_Sales_Customers_BuyingGroupID ON Sales.Customers (BuyingGroupID);
+
+CREATE INDEX FK_Sales_Customers_CustomerCategoryID ON Sales.Customers (CustomerCategoryID);
+
+CREATE INDEX FK_Sales_Customers_DeliveryCityID ON Sales.Customers (DeliveryCityID);
+
+CREATE INDEX FK_Sales_Customers_DeliveryMethodID ON Sales.Customers (DeliveryMethodID);
+
+CREATE INDEX FK_Sales_Customers_PostalCityID ON Sales.Customers (PostalCityID);
+
+CREATE INDEX FK_Sales_Customers_PrimaryContactPersonID ON Sales.Customers (PrimaryContactPersonID);
+
+CREATE INDEX IX_Sales_Customers_Perf_20160301_06 ON Sales.Customers (IsOnCreditHold, CustomerID, BillToCustomerID) INCLUDE (PrimaryContactPersonID);
+
+CREATE INDEX PK_Sales_Customers ON Sales.Customers (CustomerID);
+
+CREATE INDEX UQ_Sales_Customers_CustomerName ON Sales.Customers (CustomerName);
+CREATE TABLE Purchasing.PurchaseOrders (PurchaseOrderID int DEFAULT (NEXT VALUE FOR [Sequences].[PurchaseOrderID]) NOT NULL,
+SupplierID int  NOT NULL,
+OrderDate date  NOT NULL,
+DeliveryMethodID int  NOT NULL,
+ContactPersonID int  NOT NULL,
+ExpectedDeliveryDate date  NULL,
+SupplierReference nvarchar(20)  NULL,
+IsOrderFinalized bit  NOT NULL,
+Comments nvarchar(-1)  NULL,
+InternalComments nvarchar(-1)  NULL,
+LastEditedBy int  NOT NULL,
+LastEditedWhen datetime2 DEFAULT (sysdatetime()) NOT NULL
+);
+
+CREATE INDEX FK_Purchasing_PurchaseOrders_ContactPersonID ON Purchasing.PurchaseOrders (ContactPersonID);
+
+CREATE INDEX FK_Purchasing_PurchaseOrders_DeliveryMethodID ON Purchasing.PurchaseOrders (DeliveryMethodID);
+
+CREATE INDEX FK_Purchasing_PurchaseOrders_SupplierID ON Purchasing.PurchaseOrders (SupplierID);
+
+CREATE INDEX PK_Purchasing_PurchaseOrders ON Purchasing.PurchaseOrders (PurchaseOrderID);
+CREATE TABLE Sales.Orders (OrderID int DEFAULT (NEXT VALUE FOR [Sequences].[OrderID]) NOT NULL,
+CustomerID int  NOT NULL,
+SalespersonPersonID int  NOT NULL,
+PickedByPersonID int  NULL,
+ContactPersonID int  NOT NULL,
+BackorderOrderID int  NULL,
+OrderDate date  NOT NULL,
+ExpectedDeliveryDate date  NOT NULL,
+CustomerPurchaseOrderNumber nvarchar(20)  NULL,
+IsUndersupplyBackordered bit  NOT NULL,
+Comments nvarchar(-1)  NULL,
+DeliveryInstructions nvarchar(-1)  NULL,
+InternalComments nvarchar(-1)  NULL,
+PickingCompletedWhen datetime2  NULL,
+LastEditedBy int  NOT NULL,
+LastEditedWhen datetime2 DEFAULT (sysdatetime()) NOT NULL
+);
+
+CREATE INDEX FK_Sales_Orders_ContactPersonID ON Sales.Orders (ContactPersonID);
+
+CREATE INDEX FK_Sales_Orders_CustomerID ON Sales.Orders (CustomerID);
+
+CREATE INDEX FK_Sales_Orders_PickedByPersonID ON Sales.Orders (PickedByPersonID);
+
+CREATE INDEX FK_Sales_Orders_SalespersonPersonID ON Sales.Orders (SalespersonPersonID);
+
+CREATE INDEX PK_Sales_Orders ON Sales.Orders (OrderID);
+CREATE TABLE Warehouse.StockItems (StockItemID int DEFAULT (NEXT VALUE FOR [Sequences].[StockItemID]) NOT NULL,
+StockItemName nvarchar(100)  NOT NULL,
+SupplierID int  NOT NULL,
+ColorID int  NULL,
+UnitPackageID int  NOT NULL,
+OuterPackageID int  NOT NULL,
+Brand nvarchar(50)  NULL,
+Size nvarchar(20)  NULL,
+LeadTimeDays int  NOT NULL,
+QuantityPerOuter int  NOT NULL,
+IsChillerStock bit  NOT NULL,
+Barcode nvarchar(50)  NULL,
+TaxRate decimal  NOT NULL,
+UnitPrice decimal  NOT NULL,
+RecommendedRetailPrice decimal  NULL,
+TypicalWeightPerUnit decimal  NOT NULL,
+MarketingComments nvarchar(-1)  NULL,
+InternalComments nvarchar(-1)  NULL,
+Photo varbinary  NULL,
+CustomFields nvarchar(-1)  NULL,
+Tags nvarchar(-1)  NULL,
+SearchDetails nvarchar(-1)  NOT NULL,
+LastEditedBy int  NOT NULL,
+ValidFrom datetime2  NOT NULL,
+ValidTo datetime2  NOT NULL
+);
+
+CREATE INDEX FK_Warehouse_StockItems_ColorID ON Warehouse.StockItems (ColorID);
+
+CREATE INDEX FK_Warehouse_StockItems_OuterPackageID ON Warehouse.StockItems (OuterPackageID);
+
+CREATE INDEX FK_Warehouse_StockItems_SupplierID ON Warehouse.StockItems (SupplierID);
+
+CREATE INDEX FK_Warehouse_StockItems_UnitPackageID ON Warehouse.StockItems (UnitPackageID);
+
+CREATE INDEX PK_Warehouse_StockItems ON Warehouse.StockItems (StockItemID);
+
+CREATE INDEX UQ_Warehouse_StockItems_StockItemName ON Warehouse.StockItems (StockItemName);
+CREATE TABLE Sales.Invoices (InvoiceID int DEFAULT (NEXT VALUE FOR [Sequences].[InvoiceID]) NOT NULL,
+CustomerID int  NOT NULL,
+BillToCustomerID int  NOT NULL,
+OrderID int  NULL,
+DeliveryMethodID int  NOT NULL,
+ContactPersonID int  NOT NULL,
+AccountsPersonID int  NOT NULL,
+SalespersonPersonID int  NOT NULL,
+PackedByPersonID int  NOT NULL,
+InvoiceDate date  NOT NULL,
+CustomerPurchaseOrderNumber nvarchar(20)  NULL,
+IsCreditNote bit  NOT NULL,
+CreditNoteReason nvarchar(-1)  NULL,
+Comments nvarchar(-1)  NULL,
+DeliveryInstructions nvarchar(-1)  NULL,
+InternalComments nvarchar(-1)  NULL,
+TotalDryItems int  NOT NULL,
+TotalChillerItems int  NOT NULL,
+DeliveryRun nvarchar(5)  NULL,
+RunPosition nvarchar(5)  NULL,
+ReturnedDeliveryData nvarchar(-1)  NULL,
+ConfirmedDeliveryTime datetime2  NULL,
+ConfirmedReceivedBy nvarchar(4000)  NULL,
+LastEditedBy int  NOT NULL,
+LastEditedWhen datetime2 DEFAULT (sysdatetime()) NOT NULL
+);
+
+CREATE INDEX FK_Sales_Invoices_AccountsPersonID ON Sales.Invoices (AccountsPersonID);
+
+CREATE INDEX FK_Sales_Invoices_BillToCustomerID ON Sales.Invoices (BillToCustomerID);
+
+CREATE INDEX FK_Sales_Invoices_ContactPersonID ON Sales.Invoices (ContactPersonID);
+
+CREATE INDEX FK_Sales_Invoices_CustomerID ON Sales.Invoices (CustomerID);
+
+CREATE INDEX FK_Sales_Invoices_DeliveryMethodID ON Sales.Invoices (DeliveryMethodID);
+
+CREATE INDEX FK_Sales_Invoices_OrderID ON Sales.Invoices (OrderID);
+
+CREATE INDEX FK_Sales_Invoices_PackedByPersonID ON Sales.Invoices (PackedByPersonID);
+
+CREATE INDEX FK_Sales_Invoices_SalespersonPersonID ON Sales.Invoices (SalespersonPersonID);
+
+CREATE INDEX IX_Sales_Invoices_ConfirmedDeliveryTime ON Sales.Invoices (ConfirmedDeliveryTime) INCLUDE (ConfirmedReceivedBy);
+
+CREATE INDEX PK_Sales_Invoices ON Sales.Invoices (InvoiceID);
+CREATE TABLE Sales.OrderLines (OrderLineID int DEFAULT (NEXT VALUE FOR [Sequences].[OrderLineID]) NOT NULL,
+OrderID int  NOT NULL,
+StockItemID int  NOT NULL,
+Description nvarchar(100)  NOT NULL,
+PackageTypeID int  NOT NULL,
+Quantity int  NOT NULL,
+UnitPrice decimal  NULL,
+TaxRate decimal  NOT NULL,
+PickedQuantity int  NOT NULL,
+PickingCompletedWhen datetime2  NULL,
+LastEditedBy int  NOT NULL,
+LastEditedWhen datetime2 DEFAULT (sysdatetime()) NOT NULL
+);
+
+CREATE INDEX FK_Sales_OrderLines_OrderID ON Sales.OrderLines (OrderID);
+
+CREATE INDEX FK_Sales_OrderLines_PackageTypeID ON Sales.OrderLines (PackageTypeID);
+
+CREATE INDEX IX_Sales_OrderLines_AllocatedStockItems ON Sales.OrderLines (StockItemID) INCLUDE (PickedQuantity);
+
+CREATE INDEX IX_Sales_OrderLines_Perf_20160301_01 ON Sales.OrderLines (PickingCompletedWhen, OrderID, OrderLineID) INCLUDE (Quantity, StockItemID);
+
+CREATE INDEX IX_Sales_OrderLines_Perf_20160301_02 ON Sales.OrderLines (StockItemID, PickingCompletedWhen) INCLUDE (OrderID, PickedQuantity);
+
+CREATE INDEX NCCX_Sales_OrderLines ON Sales.OrderLines () INCLUDE (OrderID, StockItemID, Description, Quantity, UnitPrice, PickedQuantity);
+
+CREATE INDEX PK_Sales_OrderLines ON Sales.OrderLines (OrderLineID);
+CREATE TABLE Warehouse.StockItemHoldings (StockItemID int  NOT NULL,
+QuantityOnHand int  NOT NULL,
+BinLocation nvarchar(20)  NOT NULL,
+LastStocktakeQuantity int  NOT NULL,
+LastCostPrice decimal  NOT NULL,
+ReorderLevel int  NOT NULL,
+TargetStockLevel int  NOT NULL,
+LastEditedBy int  NOT NULL,
+LastEditedWhen datetime2 DEFAULT (sysdatetime()) NOT NULL
+);
+
+CREATE INDEX PK_Warehouse_StockItemHoldings ON Warehouse.StockItemHoldings (StockItemID);
+CREATE TABLE Sales.CustomerTransactions (CustomerTransactionID int DEFAULT (NEXT VALUE FOR [Sequences].[TransactionID]) NOT NULL,
+CustomerID int  NOT NULL,
+TransactionTypeID int  NOT NULL,
+InvoiceID int  NULL,
+PaymentMethodID int  NULL,
+TransactionDate date  NOT NULL,
+AmountExcludingTax decimal  NOT NULL,
+TaxAmount decimal  NOT NULL,
+TransactionAmount decimal  NOT NULL,
+OutstandingBalance decimal  NOT NULL,
+FinalizationDate date  NULL,
+IsFinalized bit  NULL,
+LastEditedBy int  NOT NULL,
+LastEditedWhen datetime2 DEFAULT (sysdatetime()) NOT NULL
+);
+
+CREATE INDEX CX_Sales_CustomerTransactions ON Sales.CustomerTransactions (TransactionDate);
+
+CREATE INDEX FK_Sales_CustomerTransactions_CustomerID ON Sales.CustomerTransactions (CustomerID, TransactionDate);
+
+CREATE INDEX FK_Sales_CustomerTransactions_InvoiceID ON Sales.CustomerTransactions (InvoiceID, TransactionDate);
+
+CREATE INDEX FK_Sales_CustomerTransactions_PaymentMethodID ON Sales.CustomerTransactions (PaymentMethodID, TransactionDate);
+
+CREATE INDEX FK_Sales_CustomerTransactions_TransactionTypeID ON Sales.CustomerTransactions (TransactionTypeID, TransactionDate);
+
+CREATE INDEX IX_Sales_CustomerTransactions_IsFinalized ON Sales.CustomerTransactions (IsFinalized, TransactionDate);
+
+CREATE INDEX PK_Sales_CustomerTransactions ON Sales.CustomerTransactions (CustomerTransactionID);
+CREATE TABLE Sales.InvoiceLines (InvoiceLineID int DEFAULT (NEXT VALUE FOR [Sequences].[InvoiceLineID]) NOT NULL,
+InvoiceID int  NOT NULL,
+StockItemID int  NOT NULL,
+Description nvarchar(100)  NOT NULL,
+PackageTypeID int  NOT NULL,
+Quantity int  NOT NULL,
+UnitPrice decimal  NULL,
+TaxRate decimal  NOT NULL,
+TaxAmount decimal  NOT NULL,
+LineProfit decimal  NOT NULL,
+ExtendedPrice decimal  NOT NULL,
+LastEditedBy int  NOT NULL,
+LastEditedWhen datetime2 DEFAULT (sysdatetime()) NOT NULL
+);
+
+CREATE INDEX FK_Sales_InvoiceLines_InvoiceID ON Sales.InvoiceLines (InvoiceID);
+
+CREATE INDEX FK_Sales_InvoiceLines_PackageTypeID ON Sales.InvoiceLines (PackageTypeID);
+
+CREATE INDEX FK_Sales_InvoiceLines_StockItemID ON Sales.InvoiceLines (StockItemID);
+
+CREATE INDEX NCCX_Sales_InvoiceLines ON Sales.InvoiceLines () INCLUDE (InvoiceID, StockItemID, Quantity, UnitPrice, LineProfit, LastEditedWhen);
+
+CREATE INDEX PK_Sales_InvoiceLines ON Sales.InvoiceLines (InvoiceLineID);
+CREATE TABLE Warehouse.StockItemTransactions (StockItemTransactionID int DEFAULT (NEXT VALUE FOR [Sequences].[TransactionID]) NOT NULL,
+StockItemID int  NOT NULL,
+TransactionTypeID int  NOT NULL,
+CustomerID int  NULL,
+InvoiceID int  NULL,
+SupplierID int  NULL,
+PurchaseOrderID int  NULL,
+TransactionOccurredWhen datetime2  NOT NULL,
+Quantity decimal  NOT NULL,
+LastEditedBy int  NOT NULL,
+LastEditedWhen datetime2 DEFAULT (sysdatetime()) NOT NULL
+);
+
+CREATE INDEX CCX_Warehouse_StockItemTransactions ON Warehouse.StockItemTransactions () INCLUDE (StockItemTransactionID, StockItemID, TransactionTypeID, CustomerID, InvoiceID, SupplierID, PurchaseOrderID, TransactionOccurredWhen, Quantity, LastEditedBy, LastEditedWhen);
+
+CREATE INDEX FK_Warehouse_StockItemTransactions_CustomerID ON Warehouse.StockItemTransactions (CustomerID);
+
+CREATE INDEX FK_Warehouse_StockItemTransactions_InvoiceID ON Warehouse.StockItemTransactions (InvoiceID);
+
+CREATE INDEX FK_Warehouse_StockItemTransactions_PurchaseOrderID ON Warehouse.StockItemTransactions (PurchaseOrderID);
+
+CREATE INDEX FK_Warehouse_StockItemTransactions_StockItemID ON Warehouse.StockItemTransactions (StockItemID);
+
+CREATE INDEX FK_Warehouse_StockItemTransactions_SupplierID ON Warehouse.StockItemTransactions (SupplierID);
+
+CREATE INDEX FK_Warehouse_StockItemTransactions_TransactionTypeID ON Warehouse.StockItemTransactions (TransactionTypeID);
+
+CREATE INDEX PK_Warehouse_StockItemTransactions ON Warehouse.StockItemTransactions (StockItemTransactionID);
+
+"""
+
+---
+
+## Additional Considerations:
+1. Should the stored procedure support parameterization? (e.g., filtering by date range, user input)
+2. Should it return a result set, modify data, or both?
+3. Are there concurrency concerns (e.g., transactional consistency, locking issues)?
+4. Should logging be included for monitoring execution?
+5. Any specific performance metrics or execution time constraints?
+
+---
